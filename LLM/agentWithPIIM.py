@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from langchain_community.tools import tool
 from langchain_tavily import TavilySearch
 from langchain.chat_models import init_chat_model
-from langchain.agents.middleware import SummarizationMiddleware, ModelFallbackMiddleware
+from langchain.agents.middleware import SummarizationMiddleware, ModelFallbackMiddleware, PIIMiddleware
 from langchain_core.runnables import RunnableConfig
 from groq import RateLimitError as GroqRateLimitError
 
@@ -52,7 +52,8 @@ llm = create_agent(
     model= llm_primary, 
     tools=tools, 
     checkpointer=InMemorySaver(), 
-    middleware=[SummarizationMiddleware(model=llm_fallback_1, trigger=("fraction", 0.7), keep=("fraction", 0.2)), ModelFallbackMiddleware(llm_fallback_1, llm_fallback_2)],
+    middleware=[SummarizationMiddleware(model=llm_fallback_1, trigger=("tokens", 10000), keep=("messages", 10)), ModelFallbackMiddleware(llm_fallback_1, llm_fallback_2),
+    PIIMiddleware(pii_type="email", strategy="redact",apply_to_input=True)],
     system_prompt= """You are a helpful chatbot. Use get_weather tool to answer weather realtive query, use web_search tool for all current and internet search information.""")
 
 thread_config: RunnableConfig = {"configurable": {"thread_id": "thread_1"}}
@@ -69,7 +70,7 @@ while True:
         ai_response = llm.invoke({"messages": messages}, config=thread_config)
 
         print(ai_response["messages"][-1].content)
-        print(ai_response["messages"][-1].usage_metadata)
+        # print(ai_response["messages"][-1].response_metadata)
 
     except GroqRateLimitError as error:
         print(f"Rate Limit Exception : {error}")
